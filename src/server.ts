@@ -15,6 +15,20 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
+// Health check doesn't need CORS (prevents Docker healthcheck from spamming CORS errors)
+app.get('/health', (req, res) => {
+  if (process.env.DEBUG_HEALTH === '1') {
+    res.status(200).json({ 
+      status: 'ok',
+      ip: req.ip,
+      xff: req.headers['x-forwarded-for'],
+      cf: req.headers['cf-connecting-ip']
+    });
+  } else {
+    res.status(200).json({ status: 'ok' });
+  }
+});
+
 app.use(cors({
   origin: function (origin, callback) {
     if (origin && allowedOrigins.includes(origin)) {
@@ -32,18 +46,6 @@ app.use(express.json());
 app.use('/api/audio', audioRoutes);
 app.use('/api', apiRoutes);
 
-app.get('/health', (req, res) => {
-  if (process.env.DEBUG_HEALTH === '1') {
-    res.status(200).json({ 
-      status: 'ok',
-      ip: req.ip,
-      xff: req.headers['x-forwarded-for'],
-      cf: req.headers['cf-connecting-ip']
-    });
-  } else {
-    res.status(200).json({ status: 'ok' });
-  }
-});
 
 // Global Error Handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
