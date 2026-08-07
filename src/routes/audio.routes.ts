@@ -14,7 +14,14 @@ const resolveLimiter = rateLimiter({
   keyPrefix: 'acadmusic:express:audio-resolve'
 });
 
-router.get('/resolve', resolveLimiter, requireAuth, getAudioResolve);
+// Rate limit for public resolve: max 5 requests per minute
+const publicResolveLimiter = rateLimiter({
+  limit: 15, // Made it 15 to allow skipping songs on frontend
+  windowMs: 60 * 1000,
+  keyPrefix: 'acadmusic:express:public-resolve'
+});
+
+router.get('/resolve', publicResolveLimiter, getAudioResolve);
 router.get('/:videoId', resolveLimiter, requireAuth, getAudioStream);
 router.get('/related/:videoId', resolveLimiter, requireAuth, getRelatedAudio);
 

@@ -50,8 +50,7 @@ router.get('/auth/spotify/login', auth_spotify_loginController.getAuthSpotifyLog
 // Import
 import * as import_scrapeController from '../controllers/import/import_scrape.controller';
 router.post('/import/scrape', scrapeLimiter, requireAuth, import_scrapeController.postImportScrape);
-import * as import_spotifyController from '../controllers/import/import_spotify.controller';
-router.post('/import/spotify', requireAuth, import_spotifyController.postImportSpotify);
+
 import * as import_processController from '../controllers/import/import_process.controller';
 router.post('/import/process', requireAuth, import_processController.postImportProcess);
 
@@ -76,8 +75,7 @@ import * as searchController from '../controllers/search/search.controller';
 router.get('/search', searchLimiter, searchController.getSearch);
 import * as search_songsController from '../controllers/search/search_songs.controller';
 router.get('/search/songs', searchLimiter, search_songsController.getSearchSongs);
-import * as search_youtubeController from '../controllers/search/search_youtube.controller';
-router.get('/search/youtube', searchLimiter, search_youtubeController.getSearchYoutube);
+
 
 // Tracks
 import * as tracks_batchController from '../controllers/tracks/tracks_batch.controller';
@@ -88,10 +86,6 @@ import * as tracks_id_similarController from '../controllers/tracks/tracks_id_si
 router.get('/tracks/:id/similar', tracksLimiter, tracks_id_similarController.getTracksIdSimilar);
 
 // Users
-import * as users_searchController from '../controllers/users/users_search.controller';
-router.get('/users/search', users_searchController.getUsersSearch);
-import * as users_idController from '../controllers/users/users_id.controller';
-router.get('/users/:id', users_idController.getUsersId);
 
 // Misc
 import * as homeController from '../controllers/misc/home.controller';
@@ -108,5 +102,7 @@ import * as romanizeController from '../controllers/misc/romanize.controller';
 router.post('/romanize', romanizeLimiter, requireAuth, romanizeController.postRomanize);
 import * as uploadController from '../controllers/misc/upload.controller';
 router.post('/upload', uploadLimiter, requireAuth, upload.single('file'), uploadController.postUpload);
+import * as socialController from '../controllers/misc/social.controller';
+router.get('/social', requireAuth, socialController.getSocialFeed);
 
 export default router;

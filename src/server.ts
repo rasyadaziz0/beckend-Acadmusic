@@ -6,7 +6,7 @@ import audioRoutes from './routes/audio.routes';
 import apiRoutes from './routes/api.routes';
 
 const app = express();
-app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+app.set('trust proxy', 'loopback');
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 const PORT = process.env.PORT || 3001;
 
@@ -31,7 +31,8 @@ app.get('/health', (req, res) => {
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (origin && allowedOrigins.includes(origin)) {
+    if (!origin) return callback(null, true); // Allow non-browser requests (SSR, Postman)
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));

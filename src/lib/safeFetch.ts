@@ -2,7 +2,6 @@ import { Agent, fetch as undiciFetch } from 'undici';
 import dns from 'dns';
 import net from 'net';
 
-const VPS_PUBLIC_IP = process.env.VPS_PUBLIC_IP || '';
 
 // Ranges that must never be reached via SSRF
 function isPrivateIp(ip: string): boolean {
@@ -23,8 +22,7 @@ function isPrivateIp(ip: string): boolean {
     if (parts[0] === 169 && parts[1] === 254) return true;
     // 0.0.0.0
     if (normalized === '0.0.0.0') return true;
-    // VPS own public IP (loop prevention)
-    if (VPS_PUBLIC_IP && normalized === VPS_PUBLIC_IP) return true;
+
     return false;
   }
 
@@ -88,6 +86,9 @@ export async function safeFetch(
     const parsed = new URL(currentUrl);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       throw new Error(`SSRF blocked: unsupported protocol ${parsed.protocol}`);
+    }
+    if (parsed.hostname.endsWith('cadhost.sbs')) {
+      throw new Error(`SSRF blocked: loopback hostname ${parsed.hostname}`);
     }
 
     const response = await undiciFetch(currentUrl, {
