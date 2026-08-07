@@ -173,7 +173,7 @@ export const getRelatedAudio = async (req: Request, res: Response) => {
     if (!GEMINI_KEY) throw new Error("No Gemini key");
     const genAI = new GoogleGenerativeAI(GEMINI_KEY);
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash-lite',
       generationConfig: { responseMimeType: 'application/json' },
     });
 
