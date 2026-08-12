@@ -14,7 +14,7 @@ export const postAiDiscover = async (req: Request, res: Response) => {
     const token = authHeader.replace('Bearer ', '');
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const supabaseKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)!;
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
@@ -44,7 +44,7 @@ export const getAiDiscover = async (req: Request, res: Response) => {
     const token = authHeader.replace('Bearer ', '');
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const supabaseKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)!;
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
