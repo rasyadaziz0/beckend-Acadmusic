@@ -1,4 +1,4 @@
-import { TextMatcher } from '../../TextMatcher';
+import * as TextMatcher from '../../../../../src/lib/server/text';
 import { BaseLyricsProvider, CleanedQuery, ProviderResult } from './BaseLyricsProvider';
 
 // ── LRCLib-specific types ─────────────────────────────────────────

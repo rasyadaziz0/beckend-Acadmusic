@@ -5,14 +5,14 @@
  * word containment checks, and composite confidence scoring
  * tuned for matching song titles and artist names.
  */
-export class TextMatcher {
+
   /** Normalize string: strip diacritics, lowercase */
-  static normKey(str: string): string {
+  export function normKey(str: string): string {
     return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   }
 
   /** Remove noise words/brackets that confuse matching */
-  static cleanForMatch(str: string): string {
+  export function cleanForMatch(str: string): string {
     return str
       .replace(/\(.*?\)|\[.*?\]/g, '')           // (Deluxe), [Remastered], etc.
       .replace(/\s*[-–—]\s*(single|ep)\s*$/i, '') // - Single, - EP
@@ -21,13 +21,13 @@ export class TextMatcher {
   }
 
   /** Extract primary artist (before feat/ft/& separators) */
-  static extractPrimaryArtist(artist: string): string {
+  export function extractPrimaryArtist(artist: string): string {
     return artist.split(/[,&/]| feat\.? | ft\.? /i)[0].trim();
   }
 
   /** Split string into a Set of lowercase words */
-  private static wordSet(str: string): Set<string> {
-    const normalized = this.normKey(str);
+  export function wordSet(str: string): Set<string> {
+    const normalized = normKey(str);
     return new Set(
       normalized.split(/[^\p{L}\p{N}]+/u).filter(w => w.length > 0)
     );
@@ -37,9 +37,9 @@ export class TextMatcher {
    * Jaccard similarity: |A ∩ B| / |A ∪ B|
    * @returns 0..1 where 1 = identical word sets
    */
-  static jaccardSimilarity(a: string, b: string): number {
-    const setA = this.wordSet(a);
-    const setB = this.wordSet(b);
+  export function jaccardSimilarity(a: string, b: string): number {
+    const setA = wordSet(a);
+    const setB = wordSet(b);
     if (setA.size === 0 && setB.size === 0) return 1;
     if (setA.size === 0 || setB.size === 0) return 0;
 
@@ -55,9 +55,9 @@ export class TextMatcher {
    * Check if ≥90% of the shorter string's words appear in the longer one.
    * Handles "Love Story" vs "Love Story (Taylor's Version)" gracefully.
    */
-  static containsAllWords(shorter: string, longer: string): boolean {
-    const shortWords = this.wordSet(shorter);
-    const longWords = this.wordSet(longer);
+  export function containsAllWords(shorter: string, longer: string): boolean {
+    const shortWords = wordSet(shorter);
+    const longWords = wordSet(longer);
     if (shortWords.size === 0) return false;
 
     let matches = 0;
@@ -75,7 +75,7 @@ export class TextMatcher {
    * - Artist:   0–35 pts (full Jaccard 25 + primary artist 10)
    * - Duration: 0–15 pts (±2s = 15, ±5s = 10, ±10s = 5, >30s = -10)
    */
-  static computeMatchScore(
+  export function computeMatchScore(
     candidateTitle: string,
     candidateArtist: string,
     candidateDurationMs: number | null,
@@ -86,23 +86,23 @@ export class TextMatcher {
     let score = 0;
 
     // ── Title scoring (0-50) ──
-    const titleJaccard = this.jaccardSimilarity(candidateTitle, targetTitle);
+    const titleJaccard = jaccardSimilarity(candidateTitle, targetTitle);
     score += titleJaccard * 40;
 
     if (titleJaccard < 1 && (
-      this.containsAllWords(targetTitle, candidateTitle) ||
-      this.containsAllWords(candidateTitle, targetTitle)
+      containsAllWords(targetTitle, candidateTitle) ||
+      containsAllWords(candidateTitle, targetTitle)
     )) {
       score += 10;
     }
 
     // ── Artist scoring (0-35) ──
-    const artistJaccard = this.jaccardSimilarity(candidateArtist, targetArtist);
+    const artistJaccard = jaccardSimilarity(candidateArtist, targetArtist);
     score += artistJaccard * 25;
 
-    const candidatePrimary = this.extractPrimaryArtist(candidateArtist);
-    const targetPrimary = this.extractPrimaryArtist(targetArtist);
-    score += this.jaccardSimilarity(candidatePrimary, targetPrimary) * 10;
+    const candidatePrimary = extractPrimaryArtist(candidateArtist);
+    const targetPrimary = extractPrimaryArtist(targetArtist);
+    score += jaccardSimilarity(candidatePrimary, targetPrimary) * 10;
 
     // ── Duration scoring (0-15) ──
     if (candidateDurationMs != null && targetDurationSec != null && targetDurationSec > 0) {
@@ -116,4 +116,4 @@ export class TextMatcher {
 
     return Math.max(0, Math.min(100, score));
   }
-}
+
