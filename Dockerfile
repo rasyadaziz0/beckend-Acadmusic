@@ -2,6 +2,9 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# Install Python3 (required by youtube-dl-exec)
+RUN apk add --no-cache python3 && ln -sf python3 /usr/bin/python
+
 # Install dependencies
 COPY package*.json ./
 RUN npm ci
@@ -16,12 +19,12 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+# Install Python3 (required by youtube-dl-exec)
+RUN apk add --no-cache python3 && ln -sf python3 /usr/bin/python
+
 # Copy package info and install only production dependencies
 COPY package*.json ./
 RUN npm ci --omit=dev
-
-# Install Python3 for yt-dlp (used by youtube-dl-exec)
-RUN apk add --no-cache python3
 
 # Copy compiled output from builder
 COPY --from=builder /app/dist ./dist
