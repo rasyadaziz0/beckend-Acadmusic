@@ -20,6 +20,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
+# Install Python3 for yt-dlp (used by youtube-dl-exec)
+RUN apk add --no-cache python3
+
 # Copy compiled output from builder
 COPY --from=builder /app/dist ./dist
 

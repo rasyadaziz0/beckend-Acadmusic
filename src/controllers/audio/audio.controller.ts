@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getInnertube } from '../../lib/innertube';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Redis } from '@upstash/redis';
+import youtubedl from 'youtube-dl-exec';
 
 const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
   ? Redis.fromEnv()
@@ -52,6 +53,27 @@ export const getAudioStream = async (req: Request, res: Response) => {
           } catch {
             // Suppress decipher warning noise
           }
+        }
+      }
+
+      // Fallback using youtube-dl-exec if youtubei.js failed
+      if (!audioUrl) {
+        try {
+          const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+          const output = await youtubedl(ytUrl, {
+            dumpSingleJson: true,
+            noWarnings: true,
+            callHome: false,
+            noCheckCertificates: true,
+            youtubeSkipDashManifest: true,
+            format: 'bestaudio/best'
+          });
+          const outAny = output as any;
+          if (outAny && outAny.url) {
+            audioUrl = outAny.url;
+          }
+        } catch (err) {
+          console.error('youtube-dl-exec fallback failed:', err);
         }
       }
 
