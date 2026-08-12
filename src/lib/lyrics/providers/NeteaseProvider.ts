@@ -1,4 +1,4 @@
-import * as TextMatcher from '../../../../../src/lib/server/text';
+import * as TextMatcher from '../../text';
 import { BaseLyricsProvider, CleanedQuery, ProviderResult } from './BaseLyricsProvider';
 
 /**
