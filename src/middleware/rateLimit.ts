@@ -74,10 +74,12 @@ function getRatelimiter(limit: number, windowMs: number, keyPrefix = 'api'): Rat
 
 export function rateLimiter(config: RateLimitConfig) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    // Get IP
+    // Get IP or User ID
     const ip = req.ip || 'unknown';
+    const userId = (req as any).user?.id;
+    const baseId = userId || ip;
 
-    const identifier = `${ip}:${req.path}`;
+    const identifier = `${baseId}:${req.path}`;
 
     if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
       const limiter = getRatelimiter(config.limit, config.windowMs, config.keyPrefix);

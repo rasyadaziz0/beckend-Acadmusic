@@ -14,7 +14,7 @@ const resolveLimiter = rateLimiter({
   keyPrefix: 'acadmusic:express:audio-resolve'
 });
 
-// Rate limit for public resolve: max 5 requests per minute
+// Rate limit for public resolve: max 15 requests per minute
 const publicResolveLimiter = rateLimiter({
   limit: 15, // Made it 15 to allow skipping songs on frontend
   windowMs: 60 * 1000,

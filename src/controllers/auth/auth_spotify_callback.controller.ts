@@ -90,10 +90,21 @@ export const getAuthSpotifyCallback = async (req: Request, res: Response) => {
     });
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    
+    // Support deep-linking back to RN app
+    if (state.startsWith('rn_')) {
+      return res.redirect(`acadmusic://import/spotify`);
+    }
+    
     return res.redirect(`${frontendUrl}/import/spotify`);
   } catch (error: unknown) {
     console.error('Spotify OAuth callback error:', error);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    
+    if (state && state.startsWith('rn_')) {
+      return res.redirect(`acadmusic://import/spotify?error=callback_failed`);
+    }
+    
     return res.redirect(`${frontendUrl}/import/spotify?error=callback_failed`);
   }
 };

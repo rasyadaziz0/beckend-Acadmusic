@@ -86,6 +86,39 @@ export const getAudioStream = async (req: Request, res: Response) => {
         return res.redirect(audioUrl);
       }
 
+      if (req.query.proxy === '1') {
+        try {
+          const { safeFetch } = require('../../lib/safeFetch');
+          const proxyRes = await safeFetch(audioUrl, {
+            maxRedirects: 3,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': '*/*'
+            }
+          });
+          if (!proxyRes.ok) {
+            return res.status(proxyRes.status).json({ error: 'Proxy failed to fetch stream' });
+          }
+          const contentType = proxyRes.headers.get('content-type') || 'audio/mp4';
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.status(proxyRes.status);
+          if (proxyRes.body) {
+            const { Readable } = require('stream');
+            const nodeStream = Readable.fromWeb(proxyRes.body as any);
+            nodeStream.pipe(res);
+            req.on('close', () => nodeStream.destroy());
+            return;
+          } else {
+            return res.send();
+          }
+        } catch (proxyErr) {
+          console.error('Audio proxy stream error:', proxyErr);
+          return res.status(500).json({ error: 'Failed to proxy audio stream' });
+        }
+      }
+
       return res.json({ url: audioUrl });
 
     } catch (error: unknown) {
