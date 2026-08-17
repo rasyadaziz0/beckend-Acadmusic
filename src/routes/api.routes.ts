@@ -54,6 +54,9 @@ router.post('/import/scrape', scrapeLimiter, requireAuth, import_scrapeControlle
 import * as import_processController from '../controllers/import/import_process.controller';
 router.post('/import/process', requireAuth, import_processController.postImportProcess);
 
+import * as import_cancelController from '../controllers/import/import_cancel.controller';
+router.post('/import/cancel', requireAuth, import_cancelController.postImportCancel);
+
 // Playlists
 import * as playlistsController from '../controllers/playlists/playlists.controller';
 router.post('/playlists', playlistsController.postPlaylists);
