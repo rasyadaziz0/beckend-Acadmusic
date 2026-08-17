@@ -22,13 +22,28 @@ export const getCronDiscover = async (req: Request, res: Response) => {
     }
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    
+    const timezonesParam = req.query.timezones as string;
+    if (!timezonesParam) {
+      return res.status(400).json({ error: 'Missing timezones parameter' });
+    }
+    
+    const matchingTimezones = timezonesParam.split(',').filter(Boolean);
 
-    const region = req.query.region as string;
-
-    // 2. Fetch user profiles, filtering by region if provided
+    // 2. Fetch user profile IDs matching the current timezones
+    // Also fetch users where timezone IS NULL as a fallback, but ONLY do this
+    // once a week (e.g. when Asia/Jakarta is triggered) to avoid generating 24 times a day for them.
+    const includeNulls = matchingTimezones.includes('Asia/Jakarta');
+    
     let query = supabaseAdmin.from('profiles').select('id');
-    if (region) {
-      query = query.eq('search_region', region);
+    
+    if (includeNulls) {
+      // Supabase PostgREST syntax for OR conditions on the same column isn't natively "IN (...) OR IS NULL"
+      // We can use the .or() syntax:
+      const inQuery = matchingTimezones.map(tz => `"${tz}"`).join(',');
+      query = query.or(`timezone.in.(${inQuery}),timezone.is.null`);
+    } else {
+      query = query.in('timezone', matchingTimezones);
     }
     
     const { data: profiles, error: profileError } = await query;
@@ -38,7 +53,7 @@ export const getCronDiscover = async (req: Request, res: Response) => {
     }
 
     if (!profiles || profiles.length === 0) {
-      return res.json({ message: 'No users found' });
+      return res.json({ message: 'No users found for these timezones' });
     }
 
     const results = {
@@ -65,6 +80,12 @@ export const getCronDiscover = async (req: Request, res: Response) => {
         }
       }
     }
+
+    console.log(
+      `[Discover Cron] Done — Total: ${results.totalUsers}, ` +
+      `Success: ${results.successCount}, Skipped: ${results.skippedCount}, ` +
+      `Failed: ${results.failedCount}`
+    );
 
     return res.json({
       message: 'Discover Weekly generation completed',

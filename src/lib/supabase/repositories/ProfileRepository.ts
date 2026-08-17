@@ -2,7 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../client';
 import { UserProfile } from '../../../types/profile';
 
-export const PROFILE_COLUMNS = 'id, username, display_name, bio, avatar_url, banner_url, social_instagram, social_twitter, social_tiktok, is_public, show_now_playing, show_recently_played, lyrics_font_size, romanization_enabled, created_at';
+export const PROFILE_COLUMNS = 'id, username, display_name, bio, avatar_url, banner_url, social_instagram, social_twitter, social_tiktok, is_public, show_now_playing, show_recently_played, lyrics_font_size, romanization_enabled, timezone, created_at';
 
 export class ProfileRepository {
   private static instance: ProfileRepository;

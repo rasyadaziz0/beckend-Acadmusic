@@ -61,47 +61,6 @@ app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
 });
 
-// Setup Cron Job for Discover Weekly (Setiap Senin 00:00 di masing-masing zona waktu)
-import cron from 'node-cron';
-
-const timezoneToRegionMap: Record<string, string> = {
-  'Asia/Jakarta': 'ID',
-  'America/New_York': 'US',
-  'Asia/Tokyo': 'JP',
-  'Asia/Seoul': 'KR',
-  'Europe/London': 'GB',
-  'Asia/Kuala_Lumpur': 'MY',
-  'Asia/Singapore': 'SG',
-  'Asia/Bangkok': 'TH',
-  'Asia/Manila': 'PH',
-  'Australia/Sydney': 'AU',
-  'America/Toronto': 'CA',
-  'Europe/Paris': 'FR',
-  'Europe/Berlin': 'DE',
-  'Europe/Rome': 'IT',
-  'Europe/Madrid': 'ES',
-  'America/Sao_Paulo': 'BR',
-  'America/Mexico_City': 'MX',
-  'Asia/Kolkata': 'IN'
-};
-
-Object.entries(timezoneToRegionMap).forEach(([tz, regionCode]) => {
-  cron.schedule('0 0 * * 1', async () => {
-    console.log(`[CRON] Running AI Discover Weekly for timezone: ${tz} (Region: ${regionCode})`);
-    try {
-      // Memanggil endpoint cron backend sendiri dengan parameter region
-      const res = await fetch(`http://localhost:${PORT}/api/cron/discover?region=${regionCode}`, {
-        headers: {
-          'Authorization': `Bearer ${process.env.CRON_SECRET}`,
-          'Origin': allowedOrigins[0] // Provide a valid origin for internal cron requests
-        }
-      });
-      const data = await res.json();
-      console.log(`[CRON ${tz}] Result:`, data);
-    } catch (error) {
-      console.error(`[CRON ${tz}] Failed to run Discover Weekly:`, error);
-    }
-  }, {
-    timezone: tz
-  });
-});
+// Setup Cron Jobs
+import { CronScheduler } from './cron/CronScheduler';
+CronScheduler.init(PORT, allowedOrigins);

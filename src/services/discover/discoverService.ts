@@ -4,6 +4,8 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { DiscoverSuggestion, SongProfile } from './types';
 import { PromptBuilder } from './PromptBuilder';
 import { GeminiAIClient } from './GeminiAIClient';
+import { HistoryRepository } from '../../lib/supabase/repositories/HistoryRepository';
+import { PlaylistRepository } from '../../lib/supabase/repositories/PlaylistRepository';
 
 const MIN_TRACKS_THRESHOLD = 5;
 
@@ -65,11 +67,21 @@ export async function searchSuggestedTracks(
   return allResults;
 }
 
+/**
+ * Generate Discover Weekly playlist for a single user.
+ *
+ * @param client — A Supabase client. When called from cron, this MUST be a service-role client
+ *                 to bypass RLS (since cron has no auth.uid() context).
+ * @param userId — The user ID to generate for.
+ */
 export async function generateDiscoverWeeklyForUser(client: SupabaseClient, userId: string) {
-  const { getWeeklyListeningHistory, getAllRecentTrackIds, getOrCreateDiscoverWeeklyPlaylist, updateDiscoverWeeklyTracks } = await import('../../lib/supabase/music');
+  // Instantiate repositories using the CALLER-PROVIDED client
+  // This ensures cron (service-role) and user-triggered (JWT) both work correctly
+  const historyRepo = new HistoryRepository(client);
+  const playlistRepo = new PlaylistRepository(client);
 
   // 1. Fetch weekly listening history
-  const weeklyHistory = await getWeeklyListeningHistory(client, userId, 7);
+  const weeklyHistory = await historyRepo.getWeeklyListeningHistory(userId, 7);
   const uniqueTrackIds = Array.from(new Set(weeklyHistory.map((r) => r.track_id)));
 
   // 2. Check minimum threshold
@@ -127,7 +139,7 @@ export async function generateDiscoverWeeklyForUser(client: SupabaseClient, user
   const suggestions = await GeminiAIClient.generateRecommendations(prompt);
 
   // 7. Get already-played track IDs for dedup
-  const alreadyPlayed = await getAllRecentTrackIds(client, userId, 30);
+  const alreadyPlayed = await historyRepo.getAllRecentTrackIds(userId, 30);
 
   // 8. Search iTunes for each suggestion
   const discoveredTracks = await searchSuggestedTracks(suggestions, alreadyPlayed, 20);
@@ -136,22 +148,9 @@ export async function generateDiscoverWeeklyForUser(client: SupabaseClient, user
     throw new Error('Could not find any matching tracks from AI suggestions.');
   }
 
-  // 9. Upsert Discover Weekly playlist
-  // Use admin client to bypass RLS for is_discover_weekly writes
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is missing in your .env file. This is required to save the Discover Weekly playlist.');
-  }
-
-  const { createClient } = await import('@supabase/supabase-js');
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceKey
-  );
-
-  const { playlist } = await getOrCreateDiscoverWeeklyPlaylist(supabaseAdmin, userId);
-  await updateDiscoverWeeklyTracks(
-    supabaseAdmin,
+  // 9. Upsert Discover Weekly playlist — using the same client (no extra createClient needed)
+  const { playlist } = await playlistRepo.getOrCreateDiscoverWeeklyPlaylist(userId);
+  await playlistRepo.updateDiscoverWeeklyTracks(
     playlist.id,
     discoveredTracks.map((t) => t.id),
   );
