@@ -12,9 +12,9 @@ export class TimezoneResolver {
 
   /**
    * Returns an array of IANA timezone strings where the current local time
-   * is Monday 12:xx PM.
+   * is Monday 12:00 AM (Midnight).
    */
-  static getTimezonesAtMondayNoon(now?: Date): string[] {
+  static getTimezonesAtMondayMidnight(now?: Date): string[] {
     const checkDate = now ?? new Date();
     
     // As a fallback to ensure we cover any missing timezones, we dynamically add
@@ -37,13 +37,13 @@ export class TimezoneResolver {
           timeZone: tz,
           weekday: 'short',
           hour: 'numeric',
-          hour12: false,
+          hourCycle: 'h23',
         });
         const parts = formatter.formatToParts(checkDate);
         const weekday = parts.find(p => p.type === 'weekday')?.value;  // "Mon"
-        const hour = parts.find(p => p.type === 'hour')?.value;        // "12"
+        const hour = parts.find(p => p.type === 'hour')?.value;        // "0"
         
-        return weekday === 'Mon' && hour === '12';
+        return weekday === 'Mon' && hour === '0';
       } catch (e) {
         // Skip invalid timezones
         return false;

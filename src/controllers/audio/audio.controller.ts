@@ -232,7 +232,9 @@ export const getRelatedAudio = async (req: Request, res: Response) => {
       generationConfig: { responseMimeType: 'application/json' },
     });
 
-    const prompt = `Give me 10 similar songs to "${title}" by "${artist}". Format as JSON array of objects with "title" and "artist".`;
+    const safeTitle = title.replace(/[^a-zA-Z0-9\s\-'()]/g, '').slice(0, 100);
+    const safeArtist = artist.replace(/[^a-zA-Z0-9\s\-'()]/g, '').slice(0, 100);
+    const prompt = `Give me 10 similar songs to "${safeTitle}" by "${safeArtist}". Format as JSON array of objects with "title" and "artist".`;
     const result = await model.generateContent(prompt);
     const text = result.response.text();
     const suggestions = JSON.parse(text);

@@ -32,7 +32,7 @@ app.get('/health', (req, res) => {
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true); // Allow non-browser requests (SSR, Postman)
-    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+    if (allowedOrigins.includes(origin) || /musiclabs.*\.vercel\.app$/i.test(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -41,7 +41,7 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Main Routes
 app.use('/api/audio', audioRoutes);

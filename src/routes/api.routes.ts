@@ -1,10 +1,5 @@
 import { Router } from 'express';
-import multer from 'multer';
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 4 * 1024 * 1024 }, // 4MB
-});
 
 const router = Router();
 import { requireAuth } from '../middleware/auth';
@@ -18,14 +13,15 @@ const lyricsLimiter = rateLimiter({ limit: 30, windowMs: 60_000, keyPrefix: 'lyr
 const searchLimiter = rateLimiter({ limit: 30, windowMs: 60_000, keyPrefix: 'search:ip' });
 const tracksLimiter = rateLimiter({ limit: 50, windowMs: 60_000, keyPrefix: 'tracks:ip' });
 const scrapeLimiter = rateLimiter({ limit: 10, windowMs: 60_000, keyPrefix: 'scrape:ip' });
+const proxyLimiter = rateLimiter({ limit: 20, windowMs: 60_000, keyPrefix: 'proxy:ip' });
 
 // Apply global rate limit to all routes in this router
 router.use(globalLimiter);
 
 // Discover
 import * as ai_discoverController from '../controllers/discover/ai_discover.controller';
-router.post('/ai/discover', ai_discoverController.postAiDiscover);
-router.get('/ai/discover', ai_discoverController.getAiDiscover);
+router.post('/ai/discover', requireAuth, ai_discoverController.postAiDiscover);
+router.get('/ai/discover', requireAuth, ai_discoverController.getAiDiscover);
 import * as cron_discoverController from '../controllers/discover/cron_discover.controller';
 router.get('/cron/discover', cron_discoverController.getCronDiscover);
 
@@ -59,9 +55,9 @@ router.post('/import/cancel', requireAuth, import_cancelController.postImportCan
 
 // Playlists
 import * as playlistsController from '../controllers/playlists/playlists.controller';
-router.post('/playlists', playlistsController.postPlaylists);
+router.post('/playlists', requireAuth, playlistsController.postPlaylists);
 import * as playlists_idController from '../controllers/playlists/playlists_id.controller';
-router.put('/playlists/:id', playlists_idController.putPlaylistsId);
+router.put('/playlists/:id', requireAuth, playlists_idController.putPlaylistsId);
 
 // Radio
 import * as radio_metadataController from '../controllers/radio/radio_metadata.controller';
@@ -100,11 +96,12 @@ router.get('/lyrics', lyricsLimiter, lyricsController.getLyrics);
 import * as previewController from '../controllers/misc/preview.controller';
 router.get('/preview', previewController.getPreview);
 import * as proxyController from '../controllers/misc/proxy.controller';
-router.get('/proxy', proxyController.getProxy);
+router.get('/proxy', proxyLimiter, proxyController.getProxy);
 import * as romanizeController from '../controllers/misc/romanize.controller';
 router.post('/romanize', romanizeLimiter, requireAuth, romanizeController.postRomanize);
 import * as uploadController from '../controllers/misc/upload.controller';
-router.post('/upload', uploadLimiter, requireAuth, upload.single('file'), uploadController.postUpload);
+router.post('/upload/presign', uploadLimiter, requireAuth, uploadController.postPresign);
+router.post('/upload/verify', uploadLimiter, requireAuth, uploadController.postVerify);
 import * as socialController from '../controllers/misc/social.controller';
 router.get('/social', requireAuth, socialController.getSocialFeed);
 

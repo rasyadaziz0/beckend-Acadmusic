@@ -37,9 +37,9 @@ export class CronScheduler {
     cron.schedule(
       '0 * * * *', // Run every hour
       async () => {
-        const matchingZones = TimezoneResolver.getTimezonesAtMondayNoon();
+        const matchingZones = TimezoneResolver.getTimezonesAtMondayMidnight();
         
-        console.log(`[CRON] Discover Weekly check — ${matchingZones.length} timezones are currently at Mon 12:00 PM`);
+        console.log(`[CRON] Discover Weekly check — ${matchingZones.length} timezones are currently at Mon 12:00 AM`);
         
         if (matchingZones.length === 0) {
           return; // Nothing to do this hour
