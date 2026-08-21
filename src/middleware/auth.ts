@@ -26,6 +26,7 @@ export const requireAuth = async (req: AuthenticatedRequest, res: Response, next
     }
 
     if (!token) {
+      console.error('[Auth Middleware] Missing or invalid token. Query token length:', req.query.token?.length);
       return res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
     }
     
@@ -39,6 +40,7 @@ export const requireAuth = async (req: AuthenticatedRequest, res: Response, next
     
     next();
   } catch (err: any) {
+    console.error('[Auth Middleware] JWT Verify failed:', err.message || err.code);
     if (err?.code === 'ERR_JWKS_TIMEOUT' || err?.code === 'ERR_JWKS_MULTIPLE_MATCHING_KEYS') {
       return res.status(503).json({ error: 'Auth temporarily unavailable' });
     }
