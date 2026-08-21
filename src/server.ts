@@ -32,7 +32,7 @@ app.get('/health', (req, res) => {
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true); // Allow non-browser requests (SSR, Postman)
-    if (allowedOrigins.includes(origin) || /musiclabs.*\.vercel\.app$/i.test(origin)) {
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));

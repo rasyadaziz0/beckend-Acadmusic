@@ -3,39 +3,31 @@ import dns from 'dns';
 import net from 'net';
 
 
+import * as ipaddr from 'ipaddr.js';
+
 // Ranges that must never be reached via SSRF
 function isPrivateIp(ip: string): boolean {
-  // Normalize IPv4-mapped IPv6 (::ffff:127.0.0.1 → 127.0.0.1)
-  const normalized = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
-
-  if (net.isIPv4(normalized)) {
-    const parts = normalized.split('.').map(Number);
-    // 127.0.0.0/8
-    if (parts[0] === 127) return true;
-    // 10.0.0.0/8
-    if (parts[0] === 10) return true;
-    // 172.16.0.0/12
-    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
-    // 192.168.0.0/16
-    if (parts[0] === 192 && parts[1] === 168) return true;
-    // 169.254.0.0/16 (link-local, AWS metadata)
-    if (parts[0] === 169 && parts[1] === 254) return true;
-    // 0.0.0.0
-    if (normalized === '0.0.0.0') return true;
-
+  try {
+    let addr = ipaddr.parse(ip);
+    if (addr.kind() === 'ipv6') {
+      const v6Addr = addr as ipaddr.IPv6;
+      if (v6Addr.isIPv4MappedAddress()) {
+        addr = v6Addr.toIPv4Address();
+      }
+    }
+    const range = addr.range();
+    
+    // Only 'unicast' is generally a safe public IP.
+    // We explicitly block all these special ranges.
+    if (range !== 'unicast') {
+      return true;
+    }
+    
     return false;
+  } catch (e) {
+    // If parsing fails, fail closed (block it)
+    return true;
   }
-
-  if (net.isIPv6(normalized)) {
-    const lower = normalized.toLowerCase();
-    // ::1, fc00::/7, fe80::/10
-    if (lower === '::1') return true;
-    if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
-    if (lower.startsWith('fe80')) return true;
-    return false;
-  }
-
-  return false;
 }
 
 // Custom undici Agent that validates DNS at connection time
@@ -89,6 +81,11 @@ export async function safeFetch(
     }
     if (parsed.hostname.endsWith('cadhost.sbs')) {
       throw new Error(`SSRF blocked: loopback hostname ${parsed.hostname}`);
+    }
+
+    // Undici skips DNS lookup for IP addresses, so we must manually check them
+    if (net.isIP(parsed.hostname) && isPrivateIp(parsed.hostname)) {
+      throw new Error(`SSRF blocked: private IP ${parsed.hostname}`);
     }
 
     const response = await undiciFetch(currentUrl, {

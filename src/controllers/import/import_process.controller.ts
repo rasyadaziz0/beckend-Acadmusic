@@ -72,11 +72,24 @@ export const postImportProcess = async (req: Request, res: Response) => {
     const importJobRepo = new ImportJobRepository(supabaseAdmin);
     const playlistRepo = new PlaylistRepository(supabaseAdmin);
 
-    // 1. Create the import job
+    // 1. Verify playlist ownership
+    try {
+      const playlist = await playlistRepo.getPlaylistById(playlistId);
+      if (playlist.user_id !== user.id) {
+        return res.status(403).json({ error: 'You can only import to your own playlists.' });
+      }
+    } catch (err) {
+      return res.status(404).json({ error: 'Playlist not found.' });
+    }
+
+    // 2. Create the import job atomically
     let job;
     try {
       job = await importJobRepo.createJob(user.id, playlistId, tracks.length);
     } catch (jobError: any) {
+      if (jobError.code === '23505') { // Postgres unique_violation
+        return res.status(429).json({ error: 'You already have an active import job running.' });
+      }
       console.error('[Import] Failed to create job:', jobError);
       return res.status(500).json({ error: 'Gagal membuat job import.' });
     }

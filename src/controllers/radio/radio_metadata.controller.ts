@@ -1,44 +1,5 @@
 import { Request, Response } from 'express';
-
-const BLOCKED_HOSTNAME_PATTERNS = [
-  /^localhost$/i,
-  /^127\.\d+\.\d+\.\d+$/,        // Loopback
-  /^10\.\d+\.\d+\.\d+$/,          // RFC 1918
-  /^172\.(1[6-9]|2\d|3[01])\./,   // RFC 1918
-  /^192\.168\.\d+\.\d+$/,         // RFC 1918
-  /^169\.254\.\d+\.\d+$/,         // Link-local / AWS metadata
-  /^0\.0\.0\.0$/,
-  /^\[::1?\]$/,                    // IPv6 loopback
-  /^metadata\.google\.internal$/i,
-  /^metadata\.internal$/i,
-];
-
-function isUrlSafe(raw: string): { safe: boolean; error?: string } {
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    return { safe: false, error: 'Invalid URL format' };
-  }
-
-  // Only allow http and https schemes
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return { safe: false, error: 'Only http/https URLs are allowed' };
-  }
-
-  // Block private/reserved hostnames
-  const hostname = parsed.hostname;
-  if (BLOCKED_HOSTNAME_PATTERNS.some((re) => re.test(hostname))) {
-    return { safe: false, error: 'Blocked hostname' };
-  }
-
-  // Block any URL with credentials embedded (user:pass@host)
-  if (parsed.username || parsed.password) {
-    return { safe: false, error: 'URLs with credentials are not allowed' };
-  }
-
-  return { safe: true };
-}
+import { safeFetch } from '../../lib/safeFetch';
 
 export const getRadioMetadata = async (req: Request, res: Response) => {
 const streamUrl = (req.query['url'] as string);
@@ -46,23 +7,19 @@ if (!streamUrl) {
 return res.status(400).json({ error: 'Missing url parameter' });
 }
 
-// SSRF guard — validate URL before fetching
-const urlCheck = isUrlSafe(streamUrl);
-if (!urlCheck.safe) {
-return res.status(400).json({ error: urlCheck.error });
-}
-
 try {
 // Request the stream with Icy-MetaData header to ask for inline metadata
+// safeFetch validates IP at DNS resolution time to prevent SSRF
 const controller = new AbortController();
 const timeout = setTimeout(() => controller.abort(), 8000);
 
-const fetchRes = await fetch(streamUrl, {
+const fetchRes = await safeFetch(streamUrl, {
   headers: {
     'Icy-MetaData': '1',
     'User-Agent': 'Mozilla/5.0 (compatible; AcadMusicRadio/1.0)',
   },
   signal: controller.signal,
+  maxRedirects: 3,
 });
 
 clearTimeout(timeout);
@@ -70,8 +27,8 @@ clearTimeout(timeout);
 // Check for icy-metaint header — this tells us the interval between metadata blocks
 const metaint = parseInt(fetchRes.headers.get('icy-metaint') || '0', 10);
 
-if (!metaint || !fetchRes.body) {
-  // No metadata support — try to get station name from icy-name header
+if (!metaint || !fetchRes.body || metaint > 262144) { // 256KB max metaint
+  // No metadata support or metaint is dangerously large — try to get station name from icy-name header
   const icyName = fetchRes.headers.get('icy-name') || '';
   // Abort the stream since we only needed the headers
   controller.abort();

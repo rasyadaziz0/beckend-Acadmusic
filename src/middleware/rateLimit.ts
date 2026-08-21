@@ -2,6 +2,19 @@ import { Request, Response, NextFunction } from 'express';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
+export function getClientIp(req: Request): string {
+  const socketIp = req.socket.remoteAddress || req.ip || '';
+  
+  // NOTE: CF-Connecting-IP is trusted here because the origin VPS is network-restricted
+  // (via firewall/security groups) to only accept ingress traffic from Cloudflare's IPs.
+  // Therefore, this header cannot be spoofed by a direct attacker bypassing Cloudflare.
+  const cfIp = req.headers['cf-connecting-ip'];
+  
+  if (typeof cfIp === 'string' && cfIp.trim().length > 0) {
+    return cfIp.trim();
+  }
+  return socketIp || 'unknown';
+}
 type Bucket = {
   count: number;
   resetAt: number;
@@ -11,9 +24,11 @@ type RateLimitConfig = {
   limit: number;
   windowMs: number;
   keyPrefix?: string;
+  useLocalOnly?: boolean;
 };
 
 const store = new Map<string, Bucket>();
+const MAX_LOCAL_KEYS = 50000;
 
 // Periodic cleanup every 10 minutes
 setInterval(() => {
@@ -21,6 +36,17 @@ setInterval(() => {
   for (const [key, bucket] of store.entries()) {
     if (now >= bucket.resetAt) {
       store.delete(key);
+    }
+  }
+  
+  // Emergency eviction if map is still too large
+  if (store.size > MAX_LOCAL_KEYS) {
+    const keysToDelete = store.size - MAX_LOCAL_KEYS;
+    let deleted = 0;
+    for (const key of store.keys()) {
+      store.delete(key);
+      deleted++;
+      if (deleted >= keysToDelete) break;
     }
   }
 }, 10 * 60 * 1000).unref?.();
@@ -64,7 +90,7 @@ function getRatelimiter(limit: number, windowMs: number, keyPrefix = 'api'): Rat
   const limiter = new Ratelimit({
     redis: Redis.fromEnv(),
     limiter: Ratelimit.slidingWindow(limit, `${windowSeconds} s`),
-    analytics: true,
+    analytics: false,
     prefix: `acadmusic:${keyPrefix}`,
   });
 
@@ -75,33 +101,34 @@ function getRatelimiter(limit: number, windowMs: number, keyPrefix = 'api'): Rat
 export function rateLimiter(config: RateLimitConfig) {
   return async (req: Request, res: Response, next: NextFunction) => {
     // Get IP or User ID
-    const ip = req.ip || 'unknown';
+    const ip = getClientIp(req);
     const userId = (req as any).user?.id;
     const baseId = userId || ip;
 
-    const identifier = `${baseId}:${req.path}`;
+    const identifier = `${config.keyPrefix || 'api'}:${baseId}`;
 
-    if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-      const limiter = getRatelimiter(config.limit, config.windowMs, config.keyPrefix);
-      const result = await limiter.limit(identifier);
+    if (!config.useLocalOnly && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+      try {
+        const limiter = getRatelimiter(config.limit, config.windowMs, config.keyPrefix);
+        const result = await limiter.limit(identifier);
 
-      res.setHeader('X-RateLimit-Limit', result.limit);
-      res.setHeader('X-RateLimit-Remaining', result.remaining);
-      const resetInSeconds = Math.max(Math.ceil((result.reset - Date.now()) / 1000), 1);
-      res.setHeader('X-RateLimit-Reset', resetInSeconds);
+        res.setHeader('X-RateLimit-Limit', result.limit);
+        res.setHeader('X-RateLimit-Remaining', result.remaining);
+        const resetInSeconds = Math.max(Math.ceil((result.reset - Date.now()) / 1000), 1);
+        res.setHeader('X-RateLimit-Reset', resetInSeconds);
 
-      if (!result.success) {
-        res.setHeader('Retry-After', resetInSeconds);
-        return res.status(429).json({ error: 'Too many requests' });
+        if (!result.success) {
+          res.setHeader('Retry-After', resetInSeconds);
+          return res.status(429).json({ error: 'Too many requests' });
+        }
+        return next();
+      } catch (error) {
+        console.error('[RATE_LIMIT] Upstash failed, falling back to local memory limit:', error);
+        // Continue to local fallback logic below
       }
-      return next();
     }
 
-    // Local fallback
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('[RATE_LIMIT] WARNING: Upstash not configured. Using local in-memory rate limiting.');
-    }
-
+    // Local fallback (used if useLocalOnly is true, Upstash is unconfigured, or Upstash throws an error)
     const result = checkLocalRateLimit(identifier, config);
     res.setHeader('X-RateLimit-Limit', result.limit);
     res.setHeader('X-RateLimit-Remaining', result.remaining);

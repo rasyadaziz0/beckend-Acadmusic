@@ -13,7 +13,7 @@ export interface ImportJob {
   created_at?: string;
 }
 
-export type ImportJobStatus = 'processing' | 'completed' | 'cancelled';
+export type ImportJobStatus = 'processing' | 'completed' | 'cancelled' | 'queued' | 'retrying';
 
 // ── Repository ────────────────────────────────────────────────────
 
@@ -114,7 +114,7 @@ export class ImportJobRepository {
       .single();
 
     if (error || !data) return false;
-    return data.status === 'processing';
+    return ['processing', 'queued', 'retrying'].includes(data.status);
   }
 
   /**
@@ -126,7 +126,7 @@ export class ImportJobRepository {
       .from('import_jobs')
       .select('*')
       .eq('user_id', userId)
-      .eq('status', 'processing')
+      .in('status', ['processing', 'queued', 'retrying'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();

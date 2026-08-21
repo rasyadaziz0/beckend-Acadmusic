@@ -1,12 +1,26 @@
 import { Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { Redis } from '@upstash/redis';
+import { randomUUID } from 'crypto';
 import { generateDiscoverWeeklyForUser } from '../../services/discover/discoverService';
 
 // We need the service role key to fetch all profiles, bypassing RLS
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
+// Redis instance for distributed locks
+const redis = process.env.UPSTASH_REDIS_REST_URL
+  ? new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
+    })
+  : null;
+
 export const getCronDiscover = async (req: Request, res: Response) => {
+  let lockKey = '';
+  let lockToken = '';
+  let heartbeatTimer: NodeJS.Timeout | null = null;
+
   try {
     // 1. Verify cron secret to prevent unauthorized execution
     const authHeader = req.headers.authorization;
@@ -20,15 +34,52 @@ export const getCronDiscover = async (req: Request, res: Response) => {
       console.warn('Missing SUPABASE_SERVICE_ROLE_KEY for cron job');
       return res.status(500).json({ error: 'Server configuration missing' });
     }
-
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
     
     const timezonesParam = req.query.timezones as string;
     if (!timezonesParam) {
       return res.status(400).json({ error: 'Missing timezones parameter' });
     }
     
-    const matchingTimezones = timezonesParam.split(',').filter(Boolean);
+    // Canonicalize and validate timezones
+    const rawTzs = timezonesParam.split(',').map(tz => tz.trim()).filter(Boolean);
+    const supportedTzs = new Set(Intl.supportedValuesOf('timeZone'));
+    
+    for (const tz of rawTzs) {
+      if (!supportedTzs.has(tz)) {
+        return res.status(400).json({ error: `Invalid timezone: ${tz}` });
+      }
+    }
+    
+    const canonicalTimezones = Array.from(new Set(rawTzs)).sort().join(',');
+    
+    // Attempt to acquire distributed lock
+    if (redis) {
+      lockToken = randomUUID();
+      lockKey = `cron:discover:lock:${canonicalTimezones}`;
+      
+      // Lock for 300 seconds (5 minutes)
+      const acquired = await redis.set(lockKey, lockToken, { nx: true, ex: 300 });
+      if (!acquired) {
+        console.log(`[Discover Cron] Execution already in progress for ${canonicalTimezones}. Aborting duplicate.`);
+        return res.status(429).json({ message: 'Execution already in progress' });
+      }
+
+      // Start heartbeat to renew lock while job is running (every 2 minutes)
+      heartbeatTimer = setInterval(async () => {
+        try {
+          await redis.eval(
+            'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("expire", KEYS[1], 300) else return 0 end',
+            [lockKey],
+            [lockToken]
+          );
+        } catch (e) {
+          console.error('[Discover Cron] Failed to renew lock heartbeat:', e);
+        }
+      }, 120_000);
+    }
+
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const matchingTimezones = canonicalTimezones.split(',');
 
     // 2. Fetch user profile IDs matching the current timezones
     // Also fetch users where timezone IS NULL as a fallback, but ONLY do this
@@ -94,5 +145,16 @@ export const getCronDiscover = async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Discover Weekly cron error:', err);
     return res.status(500).json({ error: 'Failed to execute Discover Weekly cron job' });
+  } finally {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+    }
+    if (redis && lockKey && lockToken) {
+      await redis.eval(
+        'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end',
+        [lockKey],
+        [lockToken]
+      ).catch(() => {});
+    }
   }
 };
