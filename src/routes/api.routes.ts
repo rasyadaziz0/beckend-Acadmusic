@@ -113,5 +113,7 @@ router.post('/upload/presign', authGuardLimiter, requireAuth, uploadLimiter, upl
 router.post('/upload/verify', authGuardLimiter, requireAuth, uploadLimiter, uploadController.postVerify);
 import * as socialController from '../controllers/misc/social.controller';
 router.get('/social', authGuardLimiter, requireAuth, socialLimiter, socialController.getSocialFeed);
+import * as metricsController from '../controllers/misc/metrics.controller';
+router.get('/metrics/latency', cheapLimiter, metricsController.getMetrics);
 
 export default router;

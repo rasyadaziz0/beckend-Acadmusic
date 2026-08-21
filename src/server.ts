@@ -43,6 +43,10 @@ app.use(cors({
 
 app.use(express.json({ limit: '1mb' }));
 
+import { metricsMiddleware } from './middleware/metrics';
+
+app.use(metricsMiddleware);
+
 // Main Routes
 app.use('/api/audio', audioRoutes);
 app.use('/api', apiRoutes);
@@ -57,8 +61,11 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+import { startMetricsFlusher } from './services/metricsFlusher';
+
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
+  startMetricsFlusher();
 });
 
 // Setup Cron Jobs
