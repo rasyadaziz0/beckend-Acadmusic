@@ -89,21 +89,40 @@ export const getAudioStream = async (req: Request, res: Response) => {
       if (req.query.proxy === '1') {
         try {
           const { safeFetch } = require('../../lib/safeFetch');
+          const fetchHeaders: any = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*'
+          };
+          if (req.headers.range) {
+            fetchHeaders['Range'] = req.headers.range;
+          }
+
           const proxyRes = await safeFetch(audioUrl, {
             maxRedirects: 3,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': '*/*'
-            }
+            headers: fetchHeaders
           });
+          
           if (!proxyRes.ok) {
             return res.status(proxyRes.status).json({ error: 'Proxy failed to fetch stream' });
           }
+          
           const contentType = proxyRes.headers.get('content-type') || 'audio/mp4';
           res.setHeader('Content-Type', contentType);
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Cache-Control', 'no-cache');
+          
+          if (proxyRes.headers.has('content-range')) {
+            res.setHeader('Content-Range', proxyRes.headers.get('content-range')!);
+          }
+          if (proxyRes.headers.has('accept-ranges')) {
+            res.setHeader('Accept-Ranges', proxyRes.headers.get('accept-ranges')!);
+          }
+          if (proxyRes.headers.has('content-length')) {
+            res.setHeader('Content-Length', proxyRes.headers.get('content-length')!);
+          }
+
           res.status(proxyRes.status);
+          
           if (proxyRes.body) {
             const { Readable } = require('stream');
             const nodeStream = Readable.fromWeb(proxyRes.body as any);
