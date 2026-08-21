@@ -10,6 +10,9 @@ app.set('trust proxy', 'loopback');
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 const PORT = process.env.PORT || 3001;
 
+import { metricsMiddleware } from './middleware/metrics';
+app.use(metricsMiddleware);
+
 // CORS setup to allow Next.js frontend
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
@@ -43,9 +46,6 @@ app.use(cors({
 
 app.use(express.json({ limit: '1mb' }));
 
-import { metricsMiddleware } from './middleware/metrics';
-
-app.use(metricsMiddleware);
 
 // Main Routes
 app.use('/api/audio', audioRoutes);
